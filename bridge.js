@@ -36,8 +36,9 @@ async function connect() {
     ws.send(JSON.stringify({ code: 200, headers: msg.headers, message: 'OK', data: {} }));
     
     if (msg.type === 'EVENT') {
-      const content = msg.data?.text?.content?.replace(/@\S+/g, '').trim() || '';
-      const sessionWebhook = msg.data?.sessionWebhook || '';
+      console.log('完整消息:', JSON.stringify(msg));
+const content = msg.data?.text?.content || msg.data?.content || msg.data?.messageContent || '';
+const sessionWebhook = msg.data?.sessionWebhook || msg.data?.robotCode || '';
       console.log('收到消息:', content);
       
       const body = JSON.stringify({ body: { text: { content }, sessionWebhook } });
