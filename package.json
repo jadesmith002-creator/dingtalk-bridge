@@ -2,14 +2,6 @@
   "name": "dingtalk-bridge",
   "version": "1.0.0",
   "main": "bridge.js",
-  "scripts": {
-    "start": "node bridge.js"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "@dingtalk/dingtalk_stream": "^1.0.0",
-    "node-fetch": "^2.6.9"
-  }
+  "scripts": { "start": "node bridge.js" },
+  "dependencies": { "ws": "^8.0.0" }
 }
