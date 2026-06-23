@@ -1,6 +1,6 @@
 FROM node:18-alpine
 WORKDIR /app
 COPY package.json .
-RUN npm install --registry=https://registry.npmmirror.com
+RUN npm install
 COPY bridge.js .
 CMD ["node", "bridge.js"]
