@@ -12,7 +12,7 @@ const CHROMIUM        = '/usr/bin/chromium-browser';
 const DOMAIN          = { US:1, GB:2, DE:3, FR:4, IN:5, CA:6, JP:7, ES:8, IT:9, MX:10, AE:11, AU:12, BR:13, SA:14 };
 
 // ── 通用 HTTPS POST ──
-function post(hostname, path, body, headers = {}) {
+function post(hostname, path, body, headers = {}, raw = false) {
   const data = JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -21,7 +21,11 @@ function post(hostname, path, body, headers = {}) {
     }, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
-      res.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks))); } catch { resolve(Buffer.concat(chunks).toString()); } });
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        if (raw) return resolve(buf);
+        try { resolve(JSON.parse(buf)); } catch { resolve(buf.toString()); }
+      });
     });
     req.on('error', reject);
     req.write(data);
@@ -29,18 +33,30 @@ function post(hostname, path, body, headers = {}) {
   });
 }
 
-// ── Sorftime REST API（返回 gzip+base64，自动解压）──
+// ── Sorftime REST API（自动处理 gzip 压缩响应）──
 async function sf(endpoint, body, domain) {
-  const res = await post(SF_HOST, `/api/${endpoint}?domain=${domain}`, body, {
+  const buf = await post(SF_HOST, `/api/${endpoint}?domain=${domain}`, body, {
     'Authorization': `BasicAuth ${SF_KEY}`
-  });
-  if (res && res.Data) {
-    const buf = Buffer.from(res.Data, 'base64');
-    return new Promise((resolve, reject) =>
-      zlib.gunzip(buf, (e, r) => e ? reject(e) : resolve(JSON.parse(r.toString())))
+  }, true);
+  // 先尝试直接 JSON 解析
+  try { return JSON.parse(buf); } catch {}
+  // 尝试 gzip 解压
+  try {
+    const decompressed = await new Promise((resolve, reject) =>
+      zlib.gunzip(buf, (e, r) => e ? reject(e) : resolve(r))
     );
+    return JSON.parse(decompressed.toString());
+  } catch {}
+  // 尝试 base64 解码后 gzip 解压
+  try {
+    const b64buf = Buffer.from(buf.toString(), 'base64');
+    const decompressed = await new Promise((resolve, reject) =>
+      zlib.gunzip(b64buf, (e, r) => e ? reject(e) : resolve(r))
+    );
+    return JSON.parse(decompressed.toString());
+  } catch(e) {
+    throw new Error('Sorftime响应解析失败: ' + buf.toString().slice(0, 200));
   }
-  return res;
 }
 
 // ── 钉钉工具 ──
