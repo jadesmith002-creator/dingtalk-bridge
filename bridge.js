@@ -89,31 +89,29 @@ async function runSOP({ searchName, amzSite, priceMin, priceMax }, webhook) {
   const domain = DOMAIN[amzSite] || 1;
   await replyDing(webhook, `⏳ 开始调研「${searchName}」，完成后通知你...`);
 
-  // Step1: 翻页搜索 + 过滤（REST API 用大驼峰参数名）
+  // Step1: ProductSearchFromName 翻页搜索 + 过滤
+  // 参数：Name（产品名）、PageIndex（分页从1开始，每页最多100条）
   const seen = new Set(), products = [];
-  for (let page = 1; ; page++) {
-    const body = {
-      Page: page,
-      MonthSaleVolumeRangeMin: 300,
-      AttributeName: searchName
-    };
-    if (priceMin) body.PriceRangeMin = priceMin;
-    if (priceMax) body.PriceRangeMax = priceMax;
-
+  for (let pageIndex = 1; ; pageIndex++) {
     let data;
-    try { data = await sf('ProductSearch', body, domain); }
-    catch(e) { console.log('搜索出错:', e.message); break; }
+    try {
+      data = await sf('ProductSearchFromName', { Name: searchName, PageIndex: pageIndex }, domain);
+    } catch(e) { console.log('搜索出错:', e.message); break; }
 
-    const list = (data && data.Data) || (data && data.data) || [];
+    const list = (data && data.Data) || [];
+    console.log(`第${pageIndex}页列表长度:`, list.length);
     if (!list.length) break;
 
     let stop = false;
     for (const item of list) {
       const sales = item.MonthSaleVolume || item.monthSalesVolume || 0;
       if (sales < 300) { stop = true; break; }
+      const price = item.Price || item.price || 0;
+      if (priceMin && price < priceMin) continue;
+      if (priceMax && price > priceMax) continue;
       const country = (item.SellerCountry || item.sellerCountry || '').toUpperCase();
       if (!country.includes('CN') && !country.includes('CHINA')) continue;
-      const weight = item.WeightG || item.weightG || item.itemWeight || 9999;
+      const weight = item.WeightG || item.weightG || item.ItemWeight || 9999;
       if (weight > 680) continue;
       const pk = item.ParentAsin || item.parentAsin || item.Asin || item.asin;
       if (seen.has(pk)) continue;
@@ -122,7 +120,7 @@ async function runSOP({ searchName, amzSite, priceMin, priceMax }, webhook) {
         asin: item.Asin || item.asin,
         parentAsin: pk,
         title: item.Title || item.title || '',
-        price: item.Price || item.price || 0,
+        price: price,
         monthSales: sales,
         rating: item.Star || item.rating || 0,
         reviewCount: item.ReviewCount || item.reviewCount || 0,
@@ -133,7 +131,7 @@ async function runSOP({ searchName, amzSite, priceMin, priceMax }, webhook) {
         sellerName: item.SellerName || item.sellerName || ''
       });
     }
-    if (stop || list.length < 20) break;
+    if (stop || list.length < 100) break;
     await new Promise(r => setTimeout(r, 300));
   }
 
