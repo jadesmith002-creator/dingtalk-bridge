@@ -98,7 +98,7 @@ async function runSOP({ searchName, amzSite, priceMin, priceMax }, webhook) {
       data = await sf('ProductSearchFromName', { Name: searchName, PageIndex: pageIndex }, domain);
     } catch(e) { console.log('搜索出错:', e.message); break; }
 
-    const list = (data && data.Data) || [];
+    const list = (data && data.Data) || [];if (list.length > 0) console.log('第一条原始数据:', JSON.stringify(list[0]).slice(0, 500));
     console.log(`第${pageIndex}页列表长度:`, list.length);
     if (!list.length) break;
 
